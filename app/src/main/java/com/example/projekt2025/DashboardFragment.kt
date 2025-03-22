@@ -23,14 +23,30 @@ class DashboardFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val myButton: Button = view.findViewById(R.id.button4)
+        val myButton1: Button = view.findViewById(R.id.button4)
+        val myButton2: Button= view.findViewById(R.id.button5)
 
-        myButton.setOnClickListener {
+        myButton1.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.fragment_container, BarChartFragment())
                 .addToBackStack(null)
                 .commit()
         }
+
+        myButton2.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, PieChartFragment())
+                .addToBackStack(null)
+                .commit()
+        }
+
+
+
+
+
+
+
+
     }
 
 }

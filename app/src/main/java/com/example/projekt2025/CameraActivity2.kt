@@ -30,20 +30,18 @@ import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import kotlin.random.Random
 
-
 class CameraActivity2 : AppCompatActivity() {
 
     val paint = Paint()
     val linePaint = Paint()
-    lateinit var handler:Handler
+    lateinit var handler: Handler
     lateinit var handlerThread: HandlerThread
     lateinit var textureView: TextureView
     lateinit var cameraManager: CameraManager
     lateinit var imageView: ImageView
     lateinit var bitmap: Bitmap
-    lateinit var model:LiteModelMovenetSingleposeLightningTfliteFloat164
+    lateinit var model: LiteModelMovenetSingleposeLightningTfliteFloat164
     lateinit var imageProcessor: ImageProcessor
-
 
     val colors = listOf(
         Color.RED, Color.BLUE, Color.GREEN, Color.YELLOW, Color.CYAN,
@@ -58,30 +56,25 @@ class CameraActivity2 : AppCompatActivity() {
 
         get_permisssion()
 
-
-
-        imageProcessor=ImageProcessor.Builder().add(ResizeOp(192,192, ResizeOp.ResizeMethod.BILINEAR)).build()
+        imageProcessor = ImageProcessor.Builder().add(ResizeOp(192, 192, ResizeOp.ResizeMethod.BILINEAR)).build()
         model = LiteModelMovenetSingleposeLightningTfliteFloat164.newInstance(this)
-        imageView=findViewById(R.id.imageView)
-        textureView=findViewById(R.id.textureView)
+        imageView = findViewById(R.id.imageView)
+        textureView = findViewById(R.id.textureView)
 
-        cameraManager=getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
 
-
-        handlerThread=HandlerThread("videoThread")
+        handlerThread = HandlerThread("videoThread")
         handlerThread.start()
-        handler=Handler(handlerThread.looper)
+        handler = Handler(handlerThread.looper)
 
         paint.setColor(Color.GREEN)
-
         paint.style = Paint.Style.FILL
 
         linePaint.color = Color.GREEN
         linePaint.strokeWidth = 5f
         linePaint.style = Paint.Style.STROKE
 
-
-        textureView.surfaceTextureListener=object:TextureView.SurfaceTextureListener{
+        textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(
                 p0: SurfaceTexture,
                 p1: Int,
@@ -90,51 +83,45 @@ class CameraActivity2 : AppCompatActivity() {
                 open_camera()
             }
 
-            override fun onSurfaceTextureSizeChanged(
-                p0: SurfaceTexture,
-                p1: Int,
-                p2: Int
-            ) {
-
-            }
+            override fun onSurfaceTextureSizeChanged(p0: SurfaceTexture, p1: Int, p2: Int) {}
 
             override fun onSurfaceTextureDestroyed(p0: SurfaceTexture): Boolean {
                 return false
             }
 
             override fun onSurfaceTextureUpdated(p0: SurfaceTexture) {
+                bitmap = textureView.bitmap!!
 
-                bitmap=textureView.bitmap!!
-
-                var tensorImage=TensorImage(DataType.UINT8)
+                var tensorImage = TensorImage(DataType.UINT8)
 
                 tensorImage.load(bitmap)
-                tensorImage=imageProcessor.process(tensorImage)
-
+                tensorImage = imageProcessor.process(tensorImage)
 
                 val inputFeature0 = TensorBuffer.createFixedSize(intArrayOf(1, 192, 192, 3), DataType.UINT8)
                 inputFeature0.loadBuffer(tensorImage.buffer)
 
-
                 val outputs = model.process(inputFeature0)
-                val outputFeature0 = outputs.outputFeature0AsTensorBuffer.floatArray
+                val outputFeature0 = outputs.outputFeature0AsTensorBuffer
 
-                var mutable =bitmap.copy(Bitmap.Config.ARGB_8888, true)
+                // Dobijanje float array-a sa metodom getFloatArray()
+                val outputFloatArray = outputFeature0.floatArray
 
-                var canvas= Canvas(mutable)
+                var mutable = bitmap.copy(Bitmap.Config.ARGB_8888, true)
 
-                var h = bitmap.height
-                var w = bitmap.width
+                val canvas = Canvas(mutable)
+
+                val h = bitmap.height
+                val w = bitmap.width
                 var x = 0
 
-                Log.d("output__", outputFeature0.size.toString())
+                Log.d("output__", outputFloatArray.size.toString())
 
                 val keypoints = mutableListOf<Pair<Float, Float>>()
 
                 while (x <= 49) {
-                    if (outputFeature0[x + 2] > 0.45) {
-                        val xPos = outputFeature0[x + 1] * w
-                        val yPos = outputFeature0[x] * h
+                    if (outputFloatArray[x + 2] > 0.45) {
+                        val xPos = outputFloatArray[x + 1] * w
+                        val yPos = outputFloatArray[x] * h
                         keypoints.add(Pair(xPos, yPos))
 
                         // Nacrtaj točku
@@ -147,34 +134,25 @@ class CameraActivity2 : AppCompatActivity() {
 
                 // Lista povezanih ključnih točaka
                 val bodyJoints = listOf(
-                    // Povezivanje ruku
-                    Pair(0, 1),  // Vrat → Desno rame
-                    Pair(1, 2),  // Desno rame → Desna nadlaktica
-                    Pair(2, 3),  // Desna nadlaktica → Desna podlaktica
-                    Pair(3, 4),  // Desna podlaktica → Desna šaka
-
-                    Pair(0, 5),  // Vrat → Lijevo rame
-                    Pair(5, 6),  // Lijevo rame → Lijeva nadlaktica
-                    Pair(6, 7),  // Lijeva nadlaktica → Lijeva podlaktica
-                    Pair(7, 8),  // Lijeva podlaktica → Lijeva šaka
-
-                    // Povezivanje nogu
-                    Pair(9, 10), // Kuk → Desna natkoljenica
-                    Pair(10, 11), // Desna natkoljenica → Desna potkoljenica
-                    Pair(11, 12), // Desna potkoljenica → Desno stopalo
-
-                    Pair(9, 13), // Kuk → Lijeva natkoljenica
-                    Pair(13, 14), // Lijeva natkoljenica → Lijeva potkoljenica
-                    Pair(14, 15), // Lijeva potkoljenica → Lijevo stopalo
-
-                    // Povezivanje trupa
-                    Pair(0, 9),   // Vrat → Kuk (osovina tijela)
-
-                    // Povezivanje ramena i kukova radi stabilnosti
-                    Pair(1, 5),   // Desno rame → Lijevo rame
-                    Pair(10, 13)  // Desna natkoljenica → Lijeva natkoljenica (kukovi povezani)
+                    Pair(0, 1),  // Nos → Desno unutrašnje oko
+                    Pair(0, 2),  // Nos → Levo unutrašnje oko
+                    Pair(1, 3),  // Desno unutrašnje oko → Desno spoljašnje oko
+                    Pair(2, 4),  // Levo unutrašnje oko → Levo spoljašnje oko
+                    Pair(0, 5),  // Nos → Desno uho
+                    Pair(0, 6),  // Nos → Levo uho
+                    Pair(5, 7),  // Desno rame → Desni lakat
+                    Pair(7, 9),  // Desni lakat → Desni ručni zglob
+                    Pair(6, 8),  // Lijevo rame → Lijevi lakat
+                    Pair(8, 10), // Lijevi lakat → Lijevi ručni zglob
+                    Pair(5, 6),  // Desno rame → Levo rame (ramena povezana)
+                    Pair(5, 11), // Desno rame → Desni kuk
+                    Pair(6, 12), // Lijevo rame → Lijevi kuk
+                    Pair(11, 12), // Desni kuk → Levi kuk
+                    Pair(11, 13), // Desni kuk → Desno koleno
+                    Pair(13, 15), // Desno koleno → Desno stopalo
+                    Pair(12, 14), // Lijevi kuk → Lijevo koleno
+                    Pair(14, 16)  // Lijevo koleno → Lijevo stopalo
                 )
-
 
                 // Iscrtavanje linija između ključnih točaka
                 for ((index, pair) in bodyJoints.withIndex()) {
@@ -189,9 +167,7 @@ class CameraActivity2 : AppCompatActivity() {
 
                 imageView.setImageBitmap(mutable)
             }
-
         }
-
     }
 
     override fun onDestroy() {
@@ -199,9 +175,8 @@ class CameraActivity2 : AppCompatActivity() {
         model.close()
     }
 
-
     @SuppressLint("MissingPermission")
-    fun open_camera(){
+    fun open_camera() {
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.CAMERA
@@ -209,41 +184,29 @@ class CameraActivity2 : AppCompatActivity() {
         ) {
             return
         }
-        cameraManager.openCamera(cameraManager.cameraIdList[0], object:CameraDevice.StateCallback(){
+        cameraManager.openCamera(cameraManager.cameraIdList[0], object : CameraDevice.StateCallback() {
             override fun onOpened(p0: CameraDevice) {
-
-                var captureRequest=p0.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-                var surface= Surface(textureView.surfaceTexture)
+                val captureRequest = p0.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+                val surface = Surface(textureView.surfaceTexture)
                 captureRequest.addTarget(surface)
 
-
-                p0.createCaptureSession(listOf(surface), object:CameraCaptureSession.StateCallback(){
+                p0.createCaptureSession(listOf(surface), object : CameraCaptureSession.StateCallback() {
                     override fun onConfigured(p0: CameraCaptureSession) {
-
                         p0.setRepeatingRequest(captureRequest.build(), null, null)
-
                     }
 
-                    override fun onConfigureFailed(p0: CameraCaptureSession) {
-
-                    }
-
-                },handler)
-
+                    override fun onConfigureFailed(p0: CameraCaptureSession) {}
+                }, handler)
             }
 
-            override fun onDisconnected(p0: CameraDevice) {
+            override fun onDisconnected(p0: CameraDevice) {}
 
-            }
-
-            override fun onError(p0: CameraDevice, error: Int) {
-
-            }
+            override fun onError(p0: CameraDevice, error: Int) {}
         }, handler)
     }
 
-    fun get_permisssion(){
-        if(checkSelfPermission(android.Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){
+    fun get_permisssion() {
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 101)
         }
     }
@@ -255,9 +218,6 @@ class CameraActivity2 : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-        if(grantResults[0]!=PackageManager.PERMISSION_GRANTED) get_permisssion()
-
-
+        if (grantResults[0] != PackageManager.PERMISSION_GRANTED) get_permisssion()
     }
-
 }

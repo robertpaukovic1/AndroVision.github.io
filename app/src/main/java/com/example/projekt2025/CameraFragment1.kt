@@ -24,6 +24,8 @@ import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 
+
+
 class CameraFragment1 : Fragment() {
 
     lateinit var labels: List<String>
